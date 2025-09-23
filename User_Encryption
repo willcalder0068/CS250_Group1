@@ -1,0 +1,136 @@
+#include <QApplication>
+#include <QMessageBox>
+#include <QString>
+#include <algorithm>
+#include <fstream>
+#include <iostream>
+#include <sstream>
+#include <iomanip>
+#include <openssl/sha.h>  // Use lssl and lcrypto for sha256 encryption, so we must link these libraries when compiling
+#include "promptdialog.cpp"  // File used to prompt the user for input through Qt5
+
+using namespace std;
+
+// Hardcoded path to the user database file
+const string USER_DATABASE_FILE = "C:/Users/...";
+
+// Compute SHA-256 hash
+string sha256(const string& input) {
+    // declares an array called 'hash' of size 32 (SHA256 digest length) holding unsigned chars
+    unsigned char hash[SHA256_DIGEST_LENGTH];
+
+    // Hashes the input string (taken as a character array); puts the 32 char result in 'hash'
+    SHA256((const unsigned char*)input.c_str(), input.size(), hash);
+
+    stringstream ss;
+    for (unsigned char c : hash) {
+        // Two characters are used to represent one hex value, which is then added to ss
+        ss << hex << setw(2) << setfill('0') << (int) c;
+    }
+
+    // Returns the hash code as a string (not a stringstream)
+    return ss.str();
+}
+
+// Helper function to check if a string ends with a given suffix
+bool ends_with(const std::string& value, const std::string& ending) {
+    if (ending.size() > value.size()) {
+        return false;
+    }
+    
+    return std::equal(ending.rbegin(), ending.rend(), value.rbegin());
+}
+
+
+// Prompt the user to register / login with an SDSU email
+void registerUser(QWidget *parentWidget) {
+    string userEmail;
+    vector<string> existingUsers = loadUsers();
+
+    while (true) {
+        PromptDialog prompt("Enter your email: ", parentWidget);
+        // Check for movement
+        prompt.followParent();
+        // Display dialog prompt
+        prompt.exec();
+        userEmail = prompt.getInputText().toStdString();
+
+        // If @sdsu.edu is not found in the email suffix, it is invalid
+        if (!ends_with(userEmail, "@sdsu.edu")) {
+            cout << "Must use an SDSU email address.\n";
+            // Re-loop
+        }
+        else {
+            // Exit the loop if the email is valid
+            break;
+        }
+    }
+
+    // Hash the email for safe storage
+    string hash = sha256(userEmail);
+
+    while (true) {
+        // Check if the email is already registered
+        if (find(existingUsers.begin(), existingUsers.end(), hash) != existingUsers.end()) {
+            QMessageBox::warning(parentWidget, "Email Registered", "Welcome.");
+            // User continues to the application
+            break;
+        }
+        else {
+            // Save the user to the database, then continue
+            saveUser(hash);
+
+            QMessageBox::warning(parentWidget, "Email Registered", "Welcome.");
+            // User continues to the application
+            break;
+        }
+    }
+}
+
+// Return a vector containing user hashes
+vector<string> loadUsers() {
+    vector<string> userHashes;
+
+    // Open the user database file for reading
+    ifstream in(USER_DATABASE_FILE);
+
+    // Check if the file opened successfully
+    if (!in.is_open()) {
+        cerr << "Failed to open file for reading upon checking database: " << USER_DATABASE_FILE << endl;
+        // Fail gracefully by calling an immediate exit and returning an empty vector
+        std::exit(0);
+        return {};
+    }
+    else {
+        string line, hash;
+
+        // Read each line from the file
+        while (getline(in, line)) {
+            // Create an input string stream from the line
+            istringstream iss(line);
+            // Take the hash from the line
+            iss >> hash;
+            // Add the userEmail to the vector
+            userHashes.push_back(hash);
+        }
+    }
+    return userHashes;
+}
+
+// Add a new user to the database file
+void saveUser(const string& hash) {
+    // Open the user database file for appending
+    ofstream out1(USER_DATABASE_FILE, ios::app);
+
+    // Check if the file opened successfully
+    if (!out1.is_open()) {
+        cerr << "Failed to open file for writing upon saving to database: " << USER_DATABASE_FILE << endl;
+        // Fail gracefully by calling an immediate exit and returning an empty vector
+        std::exit(0);
+        return;
+    }
+    else {
+        // Store the hashes in the database file
+        out1 << hash << "\n";
+    }
+}
