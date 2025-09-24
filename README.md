@@ -1,3 +1,5 @@
+# CS250_Group1
+This mobile application tracks laundry machine timers in order to provide convenience for SDSU student body.
 # Welcome to your Expo app 👋
 
 This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
